@@ -1,4 +1,5 @@
 import os
+import simplejson as json
 import subprocess
 from tempfile import NamedTemporaryFile
 
@@ -115,14 +116,14 @@ class Runner(object):
                  debug=False):
         self.debug = debug
         self.options = Options()
-        self.options.tags = tags,
+        self.options.tags = tags
         self.options.private_key_file = private_key_file
         self.options.verbosity = verbosity
         self.options.connection = connection
         self.options.become = True
         self.options.become_method = 'sudo'
         self.options.become_user = 'root'
-        self.options.extra_vars = extra_vars
+        self.options.extra_vars = ','.join(json.dumps(extra_vars))
 
         # Set global verbosity
         self.display = Display()
@@ -185,48 +186,22 @@ class Runner(object):
             options=self.options,
             passwords=passwords)
 
-        # TODO: so here we construct a CLI line.
-        # For whatever reason, api is not taking account for `tags`!!
-        self.callme = [
-            'ansible-playbook',
-            '-i',
-            self.hosts.name,
-            ','.join(pbs),
-        ]
-        if tags:
-            self.callme += ['--tags', ','.join(tags)]
-        if extra_vars:
-            extra = ["%s=%s" % (k, v) for k, v in extra_vars.items()]
-            self.callme += ['--extra-vars', '"%s"' % (' '.join(extra))]
-        if self.options.module_path:
-            self.callme += ['--module-path',self.options.module_path]
 
     def run(self):
         # Results of PlaybookExecutor
-        if self.debug:
-            print "ansbile cmd: ", ' '.join(self.callme)
 
-        # self.pbex.run()
-
-        # TODO: this is truly strange! I tried all subprocess calls,
-        # and this is the ONLY way that works! All others didn't, even though
-        # the printed cmd line is exactly the same, and can be executed
-        # if I copy & paste in a terminal. So strange!
-        return_code = subprocess.call(' '.join(self.callme), shell=True)
-        return True if return_code == 0 else False
-
-        # self.pbex.run()
-        # stats = self.pbex._tqm._stats
+        self.pbex.run()
+        stats = self.pbex._tqm._stats
 
         # # Test if success for record_logs
-        # run_success = True
-        # hosts = sorted(stats.processed.keys())
-        # for h in hosts:
-        #     t = stats.summarize(h)
-        #     if t['unreachable'] > 0 or t['failures'] > 0:
-        #         run_success = False
+        run_success = True
+        hosts = sorted(stats.processed.keys())
+        for h in hosts:
+            t = stats.summarize(h)
+            if t['unreachable'] > 0 or t['failures'] > 0:
+                run_success = False
 
         # # Remove created temporary files
-        # os.remove(self.hosts.name)
+        os.remove(self.hosts.name)
 
-        # return run_success, stats
+        return run_success, stats
